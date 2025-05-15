@@ -10,7 +10,7 @@ app = Flask(__name__)
 
 WEBHOOK_URL = 'https://discord.com/api/webhooks/1372652988807643391/R2ydruM68O9yGmWmM4iN1Fnp_qX7DztCn6oX3ll4eunwptc5JsHutIjG6AUM3hXGTlj9'
 STOCK_URL = 'https://vulcanvalues.com/grow-a-garden/stock'
-ROLE_MENTION = "<@1372660035930296443>"  # replace with your actual role ID
+ROLE_MENTION = "<@&1372660035930296443>"  # replace with your actual role ID
 
 previous_stock = None  # for tracking
 last_sent_time = 0     # cooldown tracker (not used in debug mode)
