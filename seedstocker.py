@@ -9,9 +9,11 @@ app = Flask(__name__)
 
 WEBHOOK_URL = 'https://discord.com/api/webhooks/1372652988807643391/R2ydruM68O9yGmWmM4iN1Fnp_qX7DztCn6oX3ll4eunwptc5JsHutIjG6AUM3hXGTlj9'
 STOCK_URL = 'https://vulcanvalues.com/grow-a-garden/stock'
-CHECK_INTERVAL = 300  # seconds, so every 5 minutes
+CHECK_INTERVAL = 300  # seconds (5 minutes)
 
-previous_stock = {}
+previous_stock = None  # None to force first send
+
+ROLE_MENTION = "<@&YOUR_ROLE_ID>"  # Replace YOUR_ROLE_ID with actual Discord role ID for @G-Seedrestock
 
 def fetch_stock():
     response = requests.get(STOCK_URL)
@@ -26,15 +28,18 @@ def fetch_stock():
             if 'x' in text:
                 name, qty = text.rsplit('x', 1)
                 stock[name.strip()] = int(qty.strip())
+    print("Fetched stock:", stock)  # Debug print
     return stock
 
 def send_webhook(message):
     data = {
-        "content": message,
+        "content": f"{ROLE_MENTION}\n{message}",
         "username": "Seed Notifier 🌱"
     }
     try:
-        requests.post(WEBHOOK_URL, json=data)
+        resp = requests.post(WEBHOOK_URL, json=data)
+        if resp.status_code != 204:
+            print(f"Webhook returned status {resp.status_code}: {resp.text}")
     except Exception as e:
         print(f"Webhook error: {e}")
 
@@ -43,16 +48,29 @@ def stock_loop():
     while True:
         try:
             current_stock = fetch_stock()
-            if current_stock != previous_stock:
+
+            if previous_stock is None:
+                # First check, always send webhook
+                message = "**🌱 Grow a Garden Seed Stock Update (Initial):**\n"
+                for seed, qty in current_stock.items():
+                    message += f"- {seed}: {qty} in stock\n"
+                send_webhook(message)
+                previous_stock = current_stock
+                print("Sent initial webhook.")
+            elif current_stock != previous_stock:
+                # Stock changed, send webhook
                 message = "**🌱 Grow a Garden Seed Stock Update:**\n"
                 for seed, qty in current_stock.items():
                     message += f"- {seed}: {qty} in stock\n"
                 send_webhook(message)
                 previous_stock = current_stock
+                print("Stock changed! Sent webhook.")
             else:
-                print("No change in seed stock.")
+                print("No change in stock.")
+
         except Exception as e:
             print(f"Error in stock_loop: {e}")
+
         time.sleep(CHECK_INTERVAL)
 
 @app.route('/')
