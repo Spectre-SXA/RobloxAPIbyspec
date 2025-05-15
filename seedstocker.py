@@ -1,10 +1,15 @@
+import threading
+import time
 import requests
 from bs4 import BeautifulSoup
-import time
+from flask import Flask
+import os
+
+app = Flask(__name__)
 
 WEBHOOK_URL = 'https://discord.com/api/webhooks/1372652988807643391/R2ydruM68O9yGmWmM4iN1Fnp_qX7DztCn6oX3ll4eunwptc5JsHutIjG6AUM3hXGTlj9'
 STOCK_URL = 'https://vulcanvalues.com/grow-a-garden/stock'
-CHECK_INTERVAL = 300  # Check every 5 minutes
+CHECK_INTERVAL = 300  # seconds, so every 5 minutes
 
 previous_stock = {}
 
@@ -28,9 +33,12 @@ def send_webhook(message):
         "content": message,
         "username": "Seed Notifier 🌱"
     }
-    requests.post(WEBHOOK_URL, json=data)
+    try:
+        requests.post(WEBHOOK_URL, json=data)
+    except Exception as e:
+        print(f"Webhook error: {e}")
 
-def main():
+def stock_loop():
     global previous_stock
     while True:
         try:
@@ -44,12 +52,14 @@ def main():
             else:
                 print("No change in seed stock.")
         except Exception as e:
-            print(f"Error: {e}")
+            print(f"Error in stock_loop: {e}")
         time.sleep(CHECK_INTERVAL)
 
-import os
+@app.route('/')
+def home():
+    return "🌱 Seed Notifier is online and running!"
 
 if __name__ == '__main__':
     threading.Thread(target=stock_loop, daemon=True).start()
-    port = int(os.environ.get("PORT", 10000))  # Use Render's port or default to 10000
+    port = int(os.environ.get("PORT", 10000))
     app.run(host='0.0.0.0', port=port)
