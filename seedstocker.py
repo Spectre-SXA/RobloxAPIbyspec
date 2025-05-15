@@ -2,7 +2,7 @@ import requests
 from bs4 import BeautifulSoup
 import time
 
-WEBHOOK_URL = 'https://discord.com/api/webhooks/your_webhook_id/your_token'
+WEBHOOK_URL = 'https://discord.com/api/webhooks/1372652988807643391/R2ydruM68O9yGmWmM4iN1Fnp_qX7DztCn6oX3ll4eunwptc5JsHutIjG6AUM3hXGTlj9'
 STOCK_URL = 'https://vulcanvalues.com/grow-a-garden/stock'
 CHECK_INTERVAL = 300  # Check every 5 minutes
 
