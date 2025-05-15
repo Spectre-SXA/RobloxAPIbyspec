@@ -47,5 +47,9 @@ def main():
             print(f"Error: {e}")
         time.sleep(CHECK_INTERVAL)
 
-if __name__ == "__main__":
-    main()
+import os
+
+if __name__ == '__main__':
+    threading.Thread(target=stock_loop, daemon=True).start()
+    port = int(os.environ.get("PORT", 10000))  # Use Render's port or default to 10000
+    app.run(host='0.0.0.0', port=port)
