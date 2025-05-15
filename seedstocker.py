@@ -4,16 +4,16 @@ import requests
 from bs4 import BeautifulSoup
 from flask import Flask
 import os
+import datetime
 
 app = Flask(__name__)
 
 WEBHOOK_URL = 'https://discord.com/api/webhooks/1372652988807643391/R2ydruM68O9yGmWmM4iN1Fnp_qX7DztCn6oX3ll4eunwptc5JsHutIjG6AUM3hXGTlj9'
 STOCK_URL = 'https://vulcanvalues.com/grow-a-garden/stock'
-CHECK_INTERVAL = 300  # seconds (5 minutes)
 
 previous_stock = None  # None to force first send
 
-ROLE_MENTION = "<@&YOUR_ROLE_ID>"  # Replace YOUR_ROLE_ID with actual Discord role ID for @G-Seedrestock
+ROLE_MENTION = "<@&1372660035930296443>"  # Replace YOUR_ROLE_ID with your Discord role ID for @G-Seedrestock
 
 def fetch_stock():
     response = requests.get(STOCK_URL)
@@ -43,6 +43,18 @@ def send_webhook(message):
     except Exception as e:
         print(f"Webhook error: {e}")
 
+def seconds_until_next_5min():
+    now = datetime.datetime.now()
+    minutes = now.minute
+    next_5min = (minutes // 5 + 1) * 5
+    if next_5min == 60:
+        # next hour
+        next_time = now.replace(hour=(now.hour + 1) % 24, minute=0, second=0, microsecond=0)
+    else:
+        next_time = now.replace(minute=next_5min, second=0, microsecond=0)
+    delta = (next_time - now).total_seconds()
+    return delta if delta > 0 else 0
+
 def stock_loop():
     global previous_stock
     while True:
@@ -50,7 +62,6 @@ def stock_loop():
             current_stock = fetch_stock()
 
             if previous_stock is None:
-                # First check, always send webhook
                 message = "**🌱 Grow a Garden Seed Stock Update (Initial):**\n"
                 for seed, qty in current_stock.items():
                     message += f"- {seed}: {qty} in stock\n"
@@ -58,7 +69,6 @@ def stock_loop():
                 previous_stock = current_stock
                 print("Sent initial webhook.")
             elif current_stock != previous_stock:
-                # Stock changed, send webhook
                 message = "**🌱 Grow a Garden Seed Stock Update:**\n"
                 for seed, qty in current_stock.items():
                     message += f"- {seed}: {qty} in stock\n"
@@ -71,7 +81,9 @@ def stock_loop():
         except Exception as e:
             print(f"Error in stock_loop: {e}")
 
-        time.sleep(CHECK_INTERVAL)
+        sleep_time = seconds_until_next_5min()
+        print(f"Sleeping for {sleep_time} seconds until next restock check.")
+        time.sleep(sleep_time)
 
 @app.route('/')
 def home():
