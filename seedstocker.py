@@ -56,10 +56,21 @@ def seconds_until_next_5min():
     return delta if delta > 0 else 0
 
 def stock_loop():
-    global previous_stock
+    global previous_stock, last_sent_time
     while True:
         try:
+            # Wait till 5-min mark first
+            sleep_time = seconds_until_next_5min()
+            print(f"Sleeping for {sleep_time} seconds until next restock check.")
+            time.sleep(sleep_time)
+
+            # Then wait extra 20 seconds to make sure restock happened
+            delay_after_restock = 20
+            print(f"Waiting additional {delay_after_restock} seconds to let restock settle.")
+            time.sleep(delay_after_restock)
+
             current_stock = fetch_stock()
+            now = time.time()
 
             if previous_stock is None:
                 message = "**🌱 Grow a Garden Seed Stock Update (Initial):**\n"
@@ -67,23 +78,26 @@ def stock_loop():
                     message += f"- {seed}: {qty} in stock\n"
                 send_webhook(message)
                 previous_stock = current_stock
+                last_sent_time = now
                 print("Sent initial webhook.")
+
             elif current_stock != previous_stock:
-                message = "**🌱 Grow a Garden Seed Stock Update:**\n"
-                for seed, qty in current_stock.items():
-                    message += f"- {seed}: {qty} in stock\n"
-                send_webhook(message)
-                previous_stock = current_stock
-                print("Stock changed! Sent webhook.")
+                if now - last_sent_time >= COOLDOWN_SECONDS:
+                    message = "**🌱 Grow a Garden Seed Stock Update:**\n"
+                    for seed, qty in current_stock.items():
+                        message += f"- {seed}: {qty} in stock\n"
+                    send_webhook(message)
+                    previous_stock = current_stock
+                    last_sent_time = now
+                    print("Stock changed! Sent webhook.")
+                else:
+                    print(f"Stock changed but cooldown active. Not sending yet. Cooldown left: {COOLDOWN_SECONDS - (now - last_sent_time):.1f}s")
             else:
                 print("No change in stock.")
 
         except Exception as e:
             print(f"Error in stock_loop: {e}")
 
-        sleep_time = seconds_until_next_5min()
-        print(f"Sleeping for {sleep_time} seconds until next restock check.")
-        time.sleep(sleep_time)
 
 @app.route('/')
 def home():
