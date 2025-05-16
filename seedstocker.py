@@ -67,15 +67,16 @@ def stock_loop():
         try:
             print("Loop running... waiting for next interval ⏳")
 
-            # Wait until next 5-min mark
+            # Wait until the next 5-min mark
             sleep_time = seconds_until_next_5min()
             print(f"Sleeping for {sleep_time:.1f} seconds to align with restock time")
             time.sleep(sleep_time)
 
-            # Extra wait to make sure stock updated
-            time.sleep(20)
-            print("Checking stock after restock delay...")
+            # 🚨 Wait 30 seconds AFTER the restock mark
+            print("Waiting 30 seconds after the 5-min mark for stock to fully update...")
+            time.sleep(30)
 
+            print("Checking stock after delay...")
             current_stock = fetch_stock()
 
             # DEBUG MODE: send every time
@@ -89,7 +90,8 @@ def stock_loop():
 
         except Exception as e:
             print(f"Error in stock_loop: {e}")
-            time.sleep(30)  # chill if it crashes
+            time.sleep(30)  # wait a bit before retrying
+
 
 @app.route('/')
 def home():
