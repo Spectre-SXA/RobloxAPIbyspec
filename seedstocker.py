@@ -48,7 +48,7 @@ def send_webhook(message):
         print(f"Webhook error: {e}")
 
 
-def seconds_until_next_5min():
+def seconds_until_next_5min_plus_buffer(buffer_seconds=7):
     now = datetime.datetime.now()
     minutes = now.minute
     next_5min = (minutes // 5 + 1) * 5
@@ -56,8 +56,12 @@ def seconds_until_next_5min():
         next_time = now.replace(hour=(now.hour + 1) % 24, minute=0, second=0, microsecond=0)
     else:
         next_time = now.replace(minute=next_5min, second=0, microsecond=0)
+    
+    # Add a buffer (like 7 seconds) to make sure we hit AFTER restock
+    next_time += datetime.timedelta(seconds=buffer_seconds)
     delta = (next_time - now).total_seconds()
     return delta if delta > 0 else 0
+
 
 
 def stock_loop():
@@ -67,30 +71,25 @@ def stock_loop():
         try:
             print("Loop running... waiting for next interval ⏳")
 
-            # Wait until the next 5-min mark
-            sleep_time = seconds_until_next_5min()
-            print(f"Sleeping for {sleep_time:.1f} seconds to align with restock time")
+            sleep_time = seconds_until_next_5min_plus_buffer()
+            print(f"Sleeping for {sleep_time:.1f} seconds to align with restock + buffer")
             time.sleep(sleep_time)
 
-            # 🚨 Wait 30 seconds AFTER the restock mark
-            print("Waiting 30 seconds after the 5-min mark for stock to fully update...")
-            time.sleep(30)
-
-            print("Checking stock after delay...")
+            print("Fetching stock NOW 🔍")
             current_stock = fetch_stock()
 
-            # DEBUG MODE: send every time
-            message = "**🌱 Seed Stock Debug Check:**\n"
+            # DEBUG MODE
+            message = f"**🌱 Seed Stock Debug Check ({datetime.datetime.now().strftime('%H:%M:%S')}):**\n"
             for seed, qty in current_stock.items():
                 message += f"- {seed}: {qty} in stock\n"
 
             send_webhook(message)
-
             previous_stock = current_stock
 
         except Exception as e:
             print(f"Error in stock_loop: {e}")
-            time.sleep(30)  # wait a bit before retrying
+            time.sleep(30)
+
 
 
 @app.route('/')
