@@ -12,113 +12,90 @@ WEBHOOK_URL = 'https://discord.com/api/webhooks/1372652988807643391/R2ydruM68O9y
 STOCK_URL = 'https://vulcanvalues.com/grow-a-garden/stock'
 ROLE_MENTION = "<@&1372660035930296443>"
 
-previous_stock = None
-
-
 def fetch_stock():
-    print("📦 Fetching stock at", datetime.datetime.now().strftime("%H:%M:%S"))
-
-    headers = {
-        "User-Agent": "Mozilla/5.0 (compatible; SeedBot/1.0)",
-        "Cache-Control": "no-cache"
-    }
-
     try:
-        response = requests.get(STOCK_URL, headers=headers)
-        if response.status_code != 200:
-            print(f"❌ Error: Received status code {response.status_code}")
-            return {}
-
-        soup = BeautifulSoup(response.text, 'html.parser')
+        print("🔍 Fetching stock data...")
+        headers = {
+            "User-Agent": "Mozilla/5.0 (SeedBot)",
+            "Cache-Control": "no-cache"
+        }
+        res = requests.get(STOCK_URL, headers=headers, timeout=10)
+        soup = BeautifulSoup(res.text, "html.parser")
 
         seeds_section = soup.find('h2', string='SEEDS STOCK')
         if not seeds_section:
-            print("❌ Couldn't find the 'SEEDS STOCK' header.")
-            print("🔎 Here's part of the page:\n", soup.prettify()[:500])
-            return {}
+            print("❌ Seeds header not found")
+            return None
 
-        stock = {}
         ul = seeds_section.find_next_sibling('ul')
         if not ul:
-            print("❌ Couldn't find the stock <ul> list.")
-            return {}
+            print("❌ Seeds list not found")
+            return None
 
+        stock = {}
         for li in ul.find_all('li'):
             text = li.get_text(strip=True)
             if 'x' in text:
                 name, qty = text.rsplit('x', 1)
                 stock[name.strip()] = int(qty.strip())
 
-        print("✅ Stock fetched:", stock)
+        print("✅ Stock:", stock)
         return stock
 
     except Exception as e:
-        print(f"🔥 Exception while fetching stock: {e}")
-        return {}
-
+        print(f"💥 Error fetching stock: {e}")
+        return None
 
 def send_webhook(message):
-    data = {
-        "content": f"{ROLE_MENTION}\n{message}",
-        "username": "Seed Notifier 🌱"
-    }
     try:
-        resp = requests.post(WEBHOOK_URL, json=data)
-        if resp.status_code != 204:
-            print(f"🚨 Webhook failed: {resp.status_code} - {resp.text}")
+        data = {
+            "content": f"{ROLE_MENTION}\n{message}",
+            "username": "Seed Notifier 🌱"
+        }
+        response = requests.post(WEBHOOK_URL, json=data, timeout=10)
+        if response.status_code == 204:
+            print("✅ Webhook sent")
         else:
-            print("✅ Webhook sent!")
+            print(f"❌ Webhook failed: {response.status_code} - {response.text}")
     except Exception as e:
-        print(f"🚨 Webhook error: {e}")
+        print(f"💥 Webhook error: {e}")
 
-
-def seconds_until_next_5min_plus_buffer(buffer_seconds=7):
+def seconds_until_next_restock(buffer=30):
     now = datetime.datetime.now()
-    minutes = now.minute
-    next_5min = (minutes // 5 + 1) * 5
-    if next_5min == 60:
+    next_min = (now.minute // 5 + 1) * 5
+    if next_min == 60:
         next_time = now.replace(hour=(now.hour + 1) % 24, minute=0, second=0, microsecond=0)
     else:
-        next_time = now.replace(minute=next_5min, second=0, microsecond=0)
-
-    next_time += datetime.timedelta(seconds=buffer_seconds)
-    delta = (next_time - now).total_seconds()
-    return delta if delta > 0 else 0
-
+        next_time = now.replace(minute=next_min, second=0, microsecond=0)
+    next_time += datetime.timedelta(seconds=buffer)
+    return max((next_time - now).total_seconds(), 0)
 
 def stock_loop():
-    global previous_stock
-
     while True:
         try:
-            print("⏳ Waiting for next 5-min + buffer...")
-            sleep_time = seconds_until_next_5min_plus_buffer()
-            print(f"🛌 Sleeping for {sleep_time:.1f} seconds")
-            time.sleep(sleep_time)
+            wait = seconds_until_next_restock()
+            print(f"⏳ Sleeping for {wait:.1f}s until next check...")
+            time.sleep(wait)
 
-            print("🔍 Time to check stock...")
-            current_stock = fetch_stock()
-
-            if not current_stock:
-                print("⚠️ No stock data found, skipping webhook.")
+            stock = fetch_stock()
+            if not stock:
+                print("⚠️ No stock fetched, retrying in 60s...")
+                time.sleep(60)
                 continue
 
-            message = f"**🌱 Seed Stock Debug Check ({datetime.datetime.now().strftime('%H:%M:%S')}):**\n"
-            for seed, qty in current_stock.items():
-                message += f"- {seed}: {qty} in stock\n"
-
+            timestamp = datetime.datetime.now().strftime("%H:%M:%S")
+            message = f"**🌱 Seed Stock ({timestamp}):**\n"
+            for seed, qty in stock.items():
+                message += f"- {seed}: {qty}\n"
             send_webhook(message)
-            previous_stock = current_stock
 
         except Exception as e:
-            print(f"💥 Error in stock_loop: {e}")
+            print(f"⚠️ Loop error: {e}")
             time.sleep(30)
-
 
 @app.route('/')
 def home():
-    return "🌿 Seed Notifier is online and chillin (debug mode)"
-
+    return "🌿 Seed Notifier is running."
 
 if __name__ == '__main__':
     threading.Thread(target=stock_loop, daemon=True).start()
